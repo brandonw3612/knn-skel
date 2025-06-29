@@ -1,6 +1,8 @@
 package cn.edu.cqu.graphics.ui.form;
 
+import cn.edu.cqu.graphics.Constants;
 import cn.edu.cqu.graphics.config.AlgorithmConfig;
+import cn.edu.cqu.graphics.model.PointCloud;
 import cn.edu.cqu.graphics.platform.*;
 import cn.edu.cqu.graphics.protocol.OnPipelineFinishListener;
 import cn.edu.cqu.graphics.protocol.Pipeline;
@@ -26,6 +28,7 @@ import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.text.DefaultCaret;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -37,6 +40,7 @@ import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
 import java.util.logging.Handler;
+import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
@@ -68,6 +72,8 @@ public class MainForm extends JFrame implements PlatformFrontEnd {
     private JTable table1;
     private JButton saveSnapshotButton;
     private JButton clearLogButton;
+    private JButton peekButton;
+    private JButton exportPointsButton;
     private SelectDataDialog dialog;
 
     private MainCanvas mainCanvas;
@@ -94,7 +100,6 @@ public class MainForm extends JFrame implements PlatformFrontEnd {
 
     @Autowired
     Logger logger;
-
 
     private void initEvent() {
         addWindowListener(windowEventListener);
@@ -197,6 +202,77 @@ public class MainForm extends JFrame implements PlatformFrontEnd {
                 }
 
                 platform.removeObjects(tobeDeleted);
+            }
+        });
+
+        peekButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int[] rows = branchList.getSelectedRows();
+                CanvasObjectListModel model = platform.getCurrentModel();
+                for (int i : rows) {
+                    CanvasObject object = model.getData().get(i);
+                    logger.log(Level.INFO, object.getName() + " [" + object.getType() + "]");
+                    switch (object.getType()) {
+                        case Constants.TYPE_POINT_CLOUD:
+                            PointCloud cloud = (PointCloud) object.getData();
+                            logger.log(Level.INFO, cloud.getPoints().size() + " points");
+                            break;
+                        case Constants.TYPE_SCATTERED_POINTS:
+                        case Constants.TYPE_COLLAPSED_POINTS_2:
+                        case Constants.TYPE_DOWNSAMPLE_POINTS:
+                            List<Point3d> points = (List<Point3d>) object.getData();
+                            logger.log(Level.INFO, points.size() + " points");
+                        default: break;
+                    }
+                }
+            }
+        });
+
+        exportPointsButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int[] rows = branchList.getSelectedRows();
+                CanvasObjectListModel model = platform.getCurrentModel();
+                for (int i : rows) {
+                    CanvasObject object = model.getData().get(i);
+                    logger.log(Level.INFO, object.getName() + " [" + object.getType() + "]");
+                    if (object.getType() != Constants.TYPE_SCATTERED_POINTS &&
+                            object.getType() != Constants.TYPE_COLLAPSED_POINTS_2 &&
+                            object.getType() != Constants.TYPE_DOWNSAMPLE_POINTS) {
+                        continue;
+                    }
+                    List<Point3d> points = (List<Point3d>) object.getData();
+                    logger.log(Level.INFO, points.size() + " points");
+                    JFileChooser chooser = new JFileChooser();
+                    chooser.setDialogTitle("Export " + object.getName() + " (" + points.size() + " points)");
+                    chooser.setDialogType(JFileChooser.SAVE_DIALOG);
+                    chooser.addChoosableFileFilter(new FileFilter() {
+                        @Override
+                        public boolean accept(File f) {
+                            return f.getName().toLowerCase().endsWith(".xyz");
+                        }
+
+                        @Override
+                        public String getDescription() {
+                            return "*.xyz";
+                        }
+                    });
+                    if (chooser.showSaveDialog(MainForm.this) == JFileChooser.APPROVE_OPTION) {
+                        File file = chooser.getSelectedFile();
+                        String fileName = chooser.getCurrentDirectory().getAbsolutePath() + "/" + file.getName() + (file.getName().endsWith(".xyz") ? "" : ".xyz");
+                        try {
+                            PrintStream ps = new PrintStream(new FileOutputStream(fileName));
+                            points.forEach(p -> ps.println(p.getX() + " " + p.getY() + " " + p.getZ()));
+                            ps.flush();
+                            ps.close();
+                            MainForm.this.logger.info("The matrix of camera has been written into " + fileName + ".");
+                        } catch (FileNotFoundException e1) {
+                            e1.printStackTrace();
+                        }
+
+                    }
+                }
             }
         });
 
@@ -550,11 +626,29 @@ public class MainForm extends JFrame implements PlatformFrontEnd {
         gbc.weighty = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel1.add(deleteButton, gbc);
+        peekButton = new JButton();
+        peekButton.setText("Peek Info");
+        gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.weightx = 1.0;
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel1.add(peekButton, gbc);
+        exportPointsButton = new JButton();
+        exportPointsButton.setText("Export Points");
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 1;
+        gbc.weightx = 1.0;
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel1.add(exportPointsButton, gbc);
         importMatrix = new JButton();
         importMatrix.setText("Import Camera");
         gbc = new GridBagConstraints();
         gbc.gridx = 0;
-        gbc.gridy = 1;
+        gbc.gridy = 2;
         gbc.weightx = 1.0;
         gbc.weighty = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -563,14 +657,14 @@ public class MainForm extends JFrame implements PlatformFrontEnd {
         saveSnapshotButton.setText("Save Snapshot");
         gbc = new GridBagConstraints();
         gbc.gridx = 0;
-        gbc.gridy = 2;
+        gbc.gridy = 3;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel1.add(saveSnapshotButton, gbc);
         exportButton = new JButton();
         exportButton.setText("Export Camera");
         gbc = new GridBagConstraints();
         gbc.gridx = 1;
-        gbc.gridy = 1;
+        gbc.gridy = 2;
         gbc.weightx = 1.0;
         gbc.weighty = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;

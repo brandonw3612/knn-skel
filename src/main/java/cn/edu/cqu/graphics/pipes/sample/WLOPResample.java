@@ -28,8 +28,8 @@ public class WLOPResample extends CachedPipe {
     @Param(comment = "Iterations for WLOP", key = "iterNum", minVal = 5, maxVal = 200)
     Integer iterNum = 10;
 
-    @Param(comment = "Num Of Samples", key = "sampleNum", minVal = 50, maxVal = 12000)
-    Integer sampleNum = 7000;
+    @Param(comment = "Num Of Samples", key = "sampleNum", minVal = 50, maxVal = 30000)
+    Integer sampleNum = 20000;
 
     @Param(comment = "3D Grid Scale", key = "radiusScale", minVal = 1, maxVal = 15)
     Integer radiusScale = 1;
